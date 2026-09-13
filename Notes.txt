@@ -1,0 +1,10 @@
+Domain Database: https://zenodo.org/records/6508640
+    - Tunnelling treated like normal malicious domains
+
+Word List Database: https://github.com/first20hours/google-10000-english/blob/master/google-10000-english.txt
+
+Bigrams : https://calmcode.io/datasets/english_2grams
+    - Removed all bigrams with <1m occurences
+
+Trigrams : https://calmcode.io/datasets/english_3grams
+    - Removed all trigrams with <500k occurences
