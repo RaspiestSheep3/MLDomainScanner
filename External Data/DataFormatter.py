@@ -1,5 +1,6 @@
 def FormatDomains():
     #I dont want the TLD servers like .org, .co.uk because its not in the training data
+    #I also dont want purely numeric domanis
     testingFile = input("Testing file path : ")
     outputFile = input("Output file path : ")
     with open(testingFile, "r") as fIn:
@@ -8,7 +9,9 @@ def FormatDomains():
             
             for line in lines:
                 lineSplit = line.split(",")
-                fOut.write(lineSplit[0] + "," + lineSplit[-1])
+                rawDomain = lineSplit[0].split(".")[0]
+                if(not rawDomain.isnumeric()):
+                    fOut.write(rawDomain + "," + lineSplit[-1])
 
 def FormatWordList():
     #I dont want any words which are 1 or 2 letters because there'll be too many detections on random strings
@@ -46,4 +49,4 @@ def FormatNGrams():
                 
                 fOut.write(line.split(",")[0] + "\n") 
 
-FormatNGrams()
+FormatDomains()

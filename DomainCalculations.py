@@ -46,6 +46,9 @@ def LongestConsecutiveConsonants(input : str) -> float:
         else:
             lengths.append(count)
             count = 0
+    
+    if(len(lengths) == 0):
+        lengths.append(count)
             
     return min(max(lengths), 20) / 20 #Capping length @ 20 => 0 - 1
 
