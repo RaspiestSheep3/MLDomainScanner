@@ -14,7 +14,7 @@ def ShannonEntropy(input : str) -> float:
         out += (input.count(char) / length) * log2(input.count(char) / length)
         processedData.add(char)
         
-    return -out / 10 #It seems fair to assume we wont have more than 100 characters in a domain
+    return -out / log2(40) #It seems fair to assume we wont have more than 40 different characters
 
 def VowelConsonantRatio(input : str) -> float:
     #Ratio = 1 => Only vowels, ratio = 0 => only consonants

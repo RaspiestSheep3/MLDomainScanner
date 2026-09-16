@@ -1,5 +1,5 @@
 - Phase 1 - Basic detection
-    - Step 1 - Calculate key info for a given domain
+    - Step 1 - Calculate key info for a given domain - DONE
     - Step 2 - Pass this into a NEAT model
     - Step 3 - Define a target fitness result
     - Step 4 - Put into a writeup
