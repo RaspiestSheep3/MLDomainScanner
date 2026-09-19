@@ -5,22 +5,36 @@
 #include "NeuroevolutionBase.h"
 
 using namespace std;
+using namespace std::chrono;
 
 //Settings
 int NUM_OF_MODELS = 100;
 int NUM_MODELS_FOR_CROSSOVER = 10;
-double MUTATION_CHANCE = 0.05;
-double MUTATION_SD = 0.01;
-int NUM_OF_ITERATIONS = 1000;
+double MUTATION_CHANCE = 0.1;
+double MUTATION_SD = 0.1;
+int NUM_OF_ITERATIONS = 10000;
+int NUM_ENTRIES_FOR_TRAINING = 500;
+int GENERATIONS_PER_SHUFFLE = 50;
+
+//Database input
+string dbPath;
+
+//Classes and structs
+struct DomainEntry {
+	float features[6];
+	float isMalicious;
+};
 
 random_device random;
 mt19937 generator(random());
 uniform_int_distribution uniformInt(0, NUM_MODELS_FOR_CROSSOVER - 1);
+auto rng = default_random_engine{};
 
 //General variables
 int main()
 {
-	cout << "Test 2" << endl;
+	cout << "Database Path : ";
+	cin >> dbPath;
 
 	vector<unique_ptr<Model>> models;
 	vector<tuple<int, double>> outputs = {};
@@ -28,14 +42,15 @@ int main()
 	for (int i = 0; i < NUM_OF_MODELS; i++) {
 		auto model = make_unique<Model>();
 
-		model->AddDenseLayer(2, Activation::TANH);
+		model->AddDenseLayer(6, Activation::TANH);
 		
-		model->AddDenseLayer(16, Activation::SIGMOID);
+		/*model->AddDenseLayer(16, Activation::SIGMOID);
 		model->AddDenseLayer(32, Activation::SIGMOID);
 		model->AddDenseLayer(32, Activation::SIGMOID);
-		model->AddDenseLayer(8, Activation::SIGMOID);
+		model->AddDenseLayer(8, Activation::SIGMOID);*/
 		
-		//model->AddDenseLayer(3, "tanh");
+		model->AddDenseLayer(12, Activation::SIGMOID);
+
 		model->AddDenseLayer(1, Activation::SIGMOID);
 
 		model->GenerateRawList();
@@ -44,50 +59,110 @@ int main()
 		outputs.push_back({ i, 0 });
 	}
 
-	//For this genetic experiment, the model will take in 2 numbers between 0 and 1 ,a and b.
-	//Output 0 if a < b, output 1 if a >= b
-
-	vector<tuple<double, double, double>> inputs = {};
 
 	cout << "Data start" << endl;
-
-	double res;
-	for (double i = 0.1; i < 1; i += 0.1) {
-		for (double j = 0.1; j < 1; j += 0.1) {
-			if (i < j) res = 0;
-			else res = 1;
-
-			inputs.push_back({i, j, res});
-		}
+	//Producing the training data
+	vector<DomainEntry> inputs = {};
+	sqlite3* db;
+	
+	if (sqlite3_open(dbPath.c_str(), &db) != SQLITE_OK) {
+		std::cerr << "Error opening database: " << sqlite3_errmsg(db) << std::endl;
+		sqlite3_close(db);
+		return 1;
 	}
+
+	sqlite3_stmt* countStmt;
+	const char* countSql = "SELECT COUNT(*) FROM domains;";
+	size_t totalRows = 0;
+
+	if (sqlite3_prepare_v2(db, countSql, -1, &countStmt, nullptr) == SQLITE_OK) {
+		if (sqlite3_step(countStmt) == SQLITE_ROW) {
+			totalRows = static_cast<size_t>(sqlite3_column_int64(countStmt, 0));
+		}
+		sqlite3_finalize(countStmt);
+	}
+
+	if (totalRows > 0) {
+		inputs.reserve(totalRows);
+	}
+
+	const char* query = "SELECT shannonEntropy, vowelConsonantRatio, longestConsecutiveConsonants, dictionaryCount, bigramCount, trigramCount, isMalicious FROM domains";
+	sqlite3_stmt * stmt;
+
+	if (sqlite3_prepare_v2(db, query, -1, &stmt, nullptr) != SQLITE_OK) {
+		std::cerr << "Failed to prepare query: " << sqlite3_errmsg(db) << std::endl;
+		sqlite3_close(db);
+		return 1;
+	}
+
+	while (sqlite3_step(stmt) == SQLITE_ROW) {
+		const unsigned char* domain = sqlite3_column_text(stmt, 0);
+		
+		DomainEntry result;
+
+		result.features[0] = static_cast<float>(sqlite3_column_double(stmt, 0));
+		result.features[1] = static_cast<float>(sqlite3_column_double(stmt, 1));
+		result.features[2] = static_cast<float>(sqlite3_column_double(stmt, 2));
+		result.features[3] = static_cast<float>(sqlite3_column_double(stmt, 3));
+		result.features[4] = static_cast<float>(sqlite3_column_double(stmt, 4));
+		result.features[5] = static_cast<float>(sqlite3_column_double(stmt, 5));
+		result.isMalicious = static_cast<float>(sqlite3_column_int(stmt, 6));
+
+		inputs.push_back(result);
+	}
+
+	sqlite3_finalize(stmt);
+	sqlite3_close(db);
 
 	cout << "Training start" << endl;
 
 	for (int h = 0; h < NUM_OF_ITERATIONS; h++) {
-		if ((h + 1) % 1 == 0) cout << "Iterations : " << h + 1 << "/" << NUM_OF_ITERATIONS << endl;
+
+		auto start = high_resolution_clock::now();
 
 		for (int i = 0; i < outputs.size(); i++) {
 			get<0>(outputs[i]) = i;
 		}
 
+		//Shuffling every n generations
+		if(h % GENERATIONS_PER_SHUFFLE == 0) ranges::shuffle(inputs, rng);
+
+		//cout << "Testing phase" << endl;
 		#pragma omp parallel for schedule(static)
 		for (int j = 0; j < models.size(); j++) {
-			vector<double> modelInputs(2);
-			vector<double> modelOutputs(1);
+			vector<double> modelInputs = {};
+			vector<double> modelOutputs = {0};
 			double offset = 0;
 
 			//Testing phase
-			for (const auto& set : inputs) {
-				modelInputs[0] = get<0>(set);
-				modelInputs[1] = get<1>(set);
+			//cout << "Marker 1" << endl;
+
+			for (int i = 0; i < NUM_ENTRIES_FOR_TRAINING; i++) {
+				if (modelInputs.size() > 0) modelInputs.clear();
+				if (modelOutputs.size() > 1) modelOutputs = { 1 };
+
+				//cout << "Marker 2" << endl;
+
+				const auto& set = inputs[i];
+
+				for (int k = 0; k < 6; k++) modelInputs.push_back(set.features[k]);
+				
+				//cout << "Marker 2.1" << endl;
+				//cout << modelInputs.size() << endl;
+				
 				models[j]->RunAlgorithm(&modelInputs, &modelOutputs);
 
-				offset += fabs(get<2>(set) - modelOutputs[0]);
+				//cout << "Marker 3" << endl;
+
+				offset += fabs(set.isMalicious - modelOutputs[0]);
 			}
 
 			get<1>(outputs[j]) = offset;
 		}
 
+		auto testingEnd = high_resolution_clock::now();
+
+		//cout << "Evolution phase" << endl;
 		//Evolution phase
 		sort(outputs.begin(), outputs.end(),
 			[](const tuple<int, double>& a, const tuple<int, double>& b) { return get<1>(a) < get<1>(b); }
@@ -122,6 +197,19 @@ int main()
 		}
 
 		models = std::move(newGeneration);
+
+		auto evolutionEnd = high_resolution_clock::now();
+
+		if ((h + 1) % 10 == 0) {
+			// Cast directly to double seconds/milliseconds to prevent 0ms truncation
+			duration<double, std::milli> testingDuration = testingEnd - start;
+			duration<double, std::milli> evolutionDuration = evolutionEnd - testingEnd;
+
+			cout << "Iteration : " << h + 1 << "/" << NUM_OF_ITERATIONS
+				<< " | Best Loss : " << get<1>(outputs[0]) << "\n"
+				<< "  -> Testing: " << testingDuration.count() << " ms\n"
+				<< "  -> Evolution: " << evolutionDuration.count() << " ms" << endl;
+		}
 	}
 
 	sort(outputs.begin(), outputs.end(),
