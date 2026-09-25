@@ -8,13 +8,14 @@ using namespace std;
 using namespace std::chrono;
 
 //Settings
-int NUM_OF_MODELS = 100;
-int NUM_MODELS_FOR_CROSSOVER = 10;
-double MUTATION_CHANCE = 0.1;
-double MUTATION_SD = 0.05;
+int NUM_OF_MODELS = 200;
+int NUM_MODELS_FOR_ELITISM = 10;
+int NUM_MODELS_FOR_CROSSOVER = 30;
+double MUTATION_CHANCE = 0.05;
+double MUTATION_SD = 0.08;
 int NUM_OF_ITERATIONS = 20000;
 int NUM_ENTRIES_PER_TRAIN_STEP = 500;
-int GENERATIONS_PER_SHUFFLE = 50;
+int GENERATIONS_PER_SHUFFLE = 10;
 int NUM_ENTRIES_FOR_TRAINING = 90000;
 int NUM_ENTRIES_FOR_EVALUATION = 10000;
 
@@ -34,13 +35,18 @@ auto rng = default_random_engine{};
 
 vector<DomainEntry> testingResults;
 
-double Evaluate(Model* model) {
+double Evaluate(Model* model, bool thresholdCheck = false) {
 	vector<double> modelInputs = {};
 	vector<double> modelOutputs = { 0 };
 	double offset = 0;
 
 	//Testing phase
 	//cout << "Marker 1" << endl;
+
+	int successfulBenign = 0;
+	int successfulMalicious = 0;
+	int failBenign = 0;
+	int failMalicious = 0;
 
 	auto start = high_resolution_clock::now();
 	for (int i = 0; i < NUM_ENTRIES_FOR_EVALUATION; i++) {
@@ -61,6 +67,11 @@ double Evaluate(Model* model) {
 		//cout << "Marker 3" << endl;
 
 		offset += fabs(set.isMalicious - modelOutputs[0]);
+
+		if (modelOutputs[0] <= 0.5 && set.isMalicious == 0) successfulBenign++;
+		else if (modelOutputs[0] > 0.5 && set.isMalicious == 1) successfulMalicious++;
+		else if (modelOutputs[0] <= 0.5 && set.isMalicious == 1) failMalicious++;
+		else if (modelOutputs[0] > 0.5 && set.isMalicious == 0) failBenign++;
 	}
 	auto end = high_resolution_clock::now();
 	duration<double, milli> duration = end - start;
@@ -69,6 +80,13 @@ double Evaluate(Model* model) {
 		<< " Average Offset : " << offset / NUM_ENTRIES_FOR_EVALUATION << "\n"
 		<< " Time Taken     : " << duration << endl;
 	*/
+
+	if (thresholdCheck) {
+		cout << "Correctly benign					: " << successfulBenign << "\n"
+			<<  "Correctly malicious				: " << successfulMalicious << "\n"
+			<<  "Thought benign, actually malicious : " << failMalicious << "\n"
+			<<  "Thought malicious, actually benign : " << failBenign << endl;
+	}
 
 	return offset / NUM_ENTRIES_FOR_EVALUATION;
 }
@@ -93,8 +111,7 @@ void Train()
 		model->AddDenseLayer(32, Activation::SIGMOID);
 		model->AddDenseLayer(8, Activation::SIGMOID);*/
 		
-		model->AddDenseLayer(12, Activation::SIGMOID);
-		model->AddDenseLayer(6, Activation::SIGMOID);
+		model->AddDenseLayer(12, Activation::LEAKY_RELU);
 
 		model->AddDenseLayer(1, Activation::SIGMOID);
 
@@ -166,6 +183,7 @@ void Train()
 		//cout << "Testing phase" << endl;
 		#pragma omp parallel for schedule(static)
 		for (int j = 0; j < models.size(); j++) {
+			double error = 0;
 			vector<double> modelInputs = {};
 			vector<double> modelOutputs = {0};
 			double offset = 0;
@@ -190,7 +208,8 @@ void Train()
 
 				//cout << "Marker 3" << endl;
 
-				offset += fabs(set.isMalicious - modelOutputs[0]);
+				error = set.isMalicious - modelOutputs[0];
+				offset += error * error;
 			}
 
 			get<1>(outputs[j]) = offset;
@@ -204,15 +223,16 @@ void Train()
 			[](const tuple<int, double>& a, const tuple<int, double>& b) { return get<1>(a) < get<1>(b); }
 		);
 
-		//cout << "Most effective score : " << get<1>(outputs[0]) << endl;
-
 		vector<unique_ptr<Model>> newGeneration = {};
 
-		int bestModelIdx = get<0>(outputs[0]);
+		int bestModelIdx = 0;
+		for (int i = 0; i < NUM_MODELS_FOR_ELITISM; i++) {
+			int elitismIdx = get<0>(outputs[i]);
+			if (i == 0) bestModelIdx = elitismIdx;
+			newGeneration.push_back(models[elitismIdx]->Clone());
+		}
 
-		//cout << "Best model index : " << bestModelIdx << endl;
-
-		newGeneration.push_back(models[bestModelIdx]->Clone());
+		double bestModelEval = Evaluate(models[bestModelIdx].get());
 
 		//cout << outputs.size() << " Outputs size " << endl;
 
@@ -242,7 +262,7 @@ void Train()
 			duration<double, std::milli> evolutionDuration = evolutionEnd - testingEnd;
 
 			cout << "Iteration : " << h + 1 << "/" << NUM_OF_ITERATIONS
-				<< " | Best Loss : " << Evaluate(models[bestModelIdx].get()) << "\n"
+				<< " | Best Loss : " << bestModelEval << "\n"
 				<< "  -> Testing: " << testingDuration.count() << " ms\n"
 				<< "  -> Evolution: " << evolutionDuration.count() << " ms" << endl;
 		}
@@ -318,8 +338,7 @@ int main() {
 
 		model->AddDenseLayer(6, Activation::TANH);
 
-		model->AddDenseLayer(12, Activation::SIGMOID);
-		model->AddDenseLayer(6, Activation::SIGMOID);
+		model->AddDenseLayer(12, Activation::LEAKY_RELU);
 
 		model->AddDenseLayer(1, Activation::SIGMOID);
 
@@ -327,7 +346,7 @@ int main() {
 
 		model->LoadModelFromWeights(filesystem::current_path() / "Models" / "1.json");
 
-		double avgOffset = Evaluate(model.get());
+		double avgOffset = Evaluate(model.get(), true);
 
 		cout << "Average offset : " << avgOffset << endl;
 	}

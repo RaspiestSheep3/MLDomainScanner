@@ -15,7 +15,7 @@ using json = nlohmann::json;
 My goal is to make a generic neuroevolving model base, which can be adapted for whatever else I want to
 do.
 */
-enum class Activation { TANH, SIGMOID };
+enum class Activation { TANH, SIGMOID, LEAKY_RELU};
 
 class Perceptron;
 
@@ -90,6 +90,7 @@ void Perceptron::ActivationFunction() {
 	double sum = CalculateSum();
 	if (activationFunc == Activation::TANH) out = tanh(sum);
 	else if (activationFunc == Activation::SIGMOID) out = 1 / (1 + exp(-sum));
+	else if (activationFunc == Activation::LEAKY_RELU) out = sum > 0 ? sum : 0.01 * sum;
 
 	//else cout << "Activation function " << activationFunc << " unknown";
 
@@ -136,14 +137,17 @@ void Model::AddDenseLayer(int numPerceptrons, Activation activationFunction) {
 
 void Model::Crossover(Model* otherModel, double mutationChance, double mutationSD) {
 	normal_distribution<double> mutator(0.0, mutationSD);
+	double mix = uniform(gen);
 
 	for (int i = 0; i < rawPerceptrons.size(); i++) {
-		if (uniform(gen) <= 0.5) rawPerceptrons[i]->bias = otherModel->rawPerceptrons[i]->bias;
+		rawPerceptrons[i]->bias = rawPerceptrons[i]->bias * mix + otherModel->rawPerceptrons[i]->bias * (1.0 - mix);
 		if (uniform(gen) <= mutationChance) rawPerceptrons[i]->bias += mutator(gen);
 	}
 
+	mix = uniform(gen);
+
 	for (int i = 0; i < rawEdges.size(); i++) {
-		if (uniform(gen) <= 0.5) rawEdges[i]->weight = otherModel->rawEdges[i]->weight;
+		rawEdges[i]->weight = rawEdges[i]->weight * mix + (1.0 - mix) * otherModel->rawEdges[i]->weight;
 		if (uniform(gen) <= mutationChance) rawEdges[i]->weight += mutator(gen);
 	}
 }
