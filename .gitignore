@@ -4,3 +4,7 @@ Neuroevolution/out/
 Neuroevolution/CMakeUserPresets.json
 .vs/
 Neuroevolution/build/
+Tensorflow/venv/
+*.keras
+!Tensorflow/Official Models/*.keras
+Tensorflow/PythonSettings.json
