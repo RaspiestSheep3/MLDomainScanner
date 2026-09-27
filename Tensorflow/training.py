@@ -5,6 +5,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras #type : ignore
 from tensorflow.keras.optimizers import Adam # type: ignore
+from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping # type: ignore
 
 def SaveModel(extraCode = ""):
     if(extraCode) != "":
@@ -18,32 +19,58 @@ print(settings)
 conn = sqlite3.connect(settings["DB Path"])
 cursor = conn.cursor()
 
-model = keras.Sequential([
-    keras.layers.Dense(6, activation='tanh'), 
-    keras.layers.Dense(12, activation='leaky_relu'), 
-    keras.layers.Dense(32, activation='leaky_relu'), 
-    keras.layers.Dense(6, activation='leaky_relu'), 
-    keras.layers.Dense(1, activation='sigmoid'), 
-])
+oldModelPath = input("Load Model (leave blank to not load) : ")
+
+if(oldModelPath.strip() != ""):
+    model = keras.models.load_model(oldModelPath)
+    model.summary()
+else:
+    model = keras.Sequential([
+        keras.layers.Dense(6, activation='tanh'), 
+        keras.layers.Dense(12, activation='leaky_relu'), 
+        keras.layers.Dense(32, activation='leaky_relu'), 
+        keras.layers.Dense(6, activation='leaky_relu'), 
+        keras.layers.Dense(1, activation='sigmoid'), 
+    ])
 
 learningRate = settings["Learning Rate"]
+
+learningRateReducer = ReduceLROnPlateau(
+    monitor='val_loss', 
+    factor=0.5, 
+    patience=30, 
+    min_lr=1e-7
+)
+
 model.compile(
-    optimizer=Adam(learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(
-    initial_learning_rate=learningRate, decay_steps=settings['Num Training Entries'] // 16, decay_rate=0.98, staircase=True)), 
+    optimizer=Adam(learningRate), 
     loss="binary_crossentropy" 
 )
 
 cursor.execute(f"SELECT * FROM domainsTesting LIMIT {settings['Num Training Entries']}")
-rows = cursor.fetchall()
+trainRows = cursor.fetchall()
+trainInputs = np.array([row[1:7] for row in trainRows], dtype=float)
+trainOutputs = np.array([row[-1] for row in trainRows], dtype=float)
 
-inputs = []
-outputs = []
-for row in rows:
-    inputs.append(np.array(row[1:7], dtype=float).flatten())
-    outputs.append(row[-1])
-    
-inputs = np.array(inputs, dtype=float)
-outputs = np.array(outputs, dtype=float)
+cursor.execute("SELECT * FROM domainsValidation")
+valRows = cursor.fetchall()
+valInputs = np.array([row[1:7] for row in valRows], dtype=float)
+valOutputs = np.array([row[-1] for row in valRows], dtype=float)
 
-model.fit(inputs, outputs, epochs=settings["Num Epochs"], verbose=2, batch_size=16)
+stopper = EarlyStopping(
+    monitor='val_loss',         
+    patience=150,              
+    restore_best_weights=True  
+)
+
+model.fit(
+    trainInputs, 
+    trainOutputs, 
+    epochs=settings["Num Epochs"], 
+    verbose=2, 
+    batch_size=settings["Batch Size"], 
+    validation_data=(valInputs, valOutputs),
+    callbacks=[stopper, learningRateReducer]  
+)
+
 SaveModel()
