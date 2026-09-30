@@ -77,4 +77,45 @@ def NGramDistribution(input : str, ngramTableFilePath : str) -> float:
         
         count += input.count(line)
     
-    return count / 20 #Normalised between 0 and 1
+    return count / 40 #Normalised between 0 and 1
+
+def TotalLength(input : str) -> float:
+    return len(input) / 70
+
+def DigitPercentage(input : str) -> float:
+    digits = ["1", "2", "3", "4", "5", "7", "8", "9", "0"]
+    digitsSum = sum(list([input.count(digit) for digit in digits]))
+    return digitsSum / len(input)
+
+def LongestConsecutiveDigits(input : str) -> float:
+    digits = "1234567890"
+        
+    lengths = []
+    count = 0
+    for char in input:
+        if(char in digits):
+            count += 1
+        else:
+            lengths.append(count)
+            count = 0
+    
+    if(len(lengths) == 0):
+        lengths.append(count)
+            
+    return min(max(lengths), 20) / 20 #Capping length @ 20 => 0 - 1
+
+def LetterDigitSymbolTransitionCount(input : str) -> float:
+    letters = "qwertyuiopasdfghjklzxcvbnm"
+    digits = "1234567890"
+    symbols = "-._"
+    
+    transitionCount = 0
+    
+    for i in range(len(input) - 1):
+        char = input[i]
+        nextChar = input[i+1]
+        
+        if(char in letters and nextChar not in letters) or (char in digits and nextChar not in digits) or (char in symbols and nextChar not in symbols):
+            transitionCount += 1
+    
+    return transitionCount / 70

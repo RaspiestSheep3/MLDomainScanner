@@ -21,6 +21,10 @@ def GenerateTestingDomains():
             dictionaryCount FLOAT,
             bigramCount FLOAT,
             trigramCount FLOAT,
+            totalLength FLOAT,
+            digitPercentage FLOAT,
+            longestConsecutiveDigits FLOAT,
+            letterDigitSymbolTransitionCount FLOAT,
             isMalicious INT
         )
     """)
@@ -34,8 +38,8 @@ def GenerateTestingDomains():
 
     i = 0
     while(numBenignDomains < (numEntries // 2) or numMaliciousDomains < (numEntries // 2)):
-        if((i + 1) % 100 == 0):
-            print(f"{i + 1} / {numEntries} ({(i + 1) * 100/numEntries:.3f}%)")
+        if((numBenignDomains + numMaliciousDomains) % 100 == 0):
+            print(f"{numBenignDomains + numMaliciousDomains} / {numEntries} ({(numBenignDomains + numMaliciousDomains) * 100/numEntries:.3f}%)")
         
         line = lines[i].strip().split(",")
         domain = line[0]
@@ -55,6 +59,11 @@ def GenerateTestingDomains():
             dictionaryCount = DomainCalculations.DictionaryCount(domain, dictionaryPath)
             bigramsCount = DomainCalculations.NGramDistribution(domain, bigramsPath)
             trigramsCount = DomainCalculations.NGramDistribution(domain, trigramsPath)
+            totalLength = DomainCalculations.TotalLength(domain)
+            digitPercentage = DomainCalculations.DigitPercentage(domain)
+            longestConsecutiveDigits = DomainCalculations.LongestConsecutiveDigits(domain)
+            letterDigitSymbolTransitionCount = DomainCalculations.LetterDigitSymbolTransitionCount(domain)
+            
             cursor.execute("""
                 INSERT INTO domainsTesting (
                     domain,
@@ -64,9 +73,13 @@ def GenerateTestingDomains():
                     dictionaryCount,
                     bigramCount,
                     trigramCount,
+                    totalLength,
+                    digitPercentage,
+                    longestConsecutiveDigits,
+                    letterDigitSymbolTransitionCount,
                     isMalicious
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 domain,
@@ -76,6 +89,10 @@ def GenerateTestingDomains():
                 dictionaryCount,
                 bigramsCount,
                 trigramsCount,
+                totalLength,
+                digitPercentage,
+                longestConsecutiveDigits,
+                letterDigitSymbolTransitionCount,
                 isMalicious
             ))
             
@@ -101,6 +118,10 @@ def GenerateValidationDomains():
                 dictionaryCount FLOAT,
                 bigramCount FLOAT,
                 trigramCount FLOAT,
+                totalLength FLOAT,
+                digitPercentage FLOAT,
+                longestConsecutiveDigits FLOAT,
+                letterDigitSymbolTransitionCount FLOAT,
                 isMalicious INT
             )
         """)
@@ -116,8 +137,8 @@ def GenerateValidationDomains():
 
     i = 0
     while(numBenignDomains < (numEntries // 2) or numMaliciousDomains < (numEntries // 2)):
-        if((i + 1) % 100 == 0):
-            print(f"{i + 1} / {numEntries} ({(i + 1) * 100/numEntries:.3f}%)")
+        if((numBenignDomains + numMaliciousDomains) % 100 == 0):
+            print(f"{numBenignDomains + numMaliciousDomains} / {numEntries} ({(numBenignDomains + numMaliciousDomains) * 100/numEntries:.3f}%)")
         
         line = lines[i].strip().split(",")
         domain = line[0]
@@ -137,6 +158,11 @@ def GenerateValidationDomains():
             dictionaryCount = DomainCalculations.DictionaryCount(domain, dictionaryPath)
             bigramsCount = DomainCalculations.NGramDistribution(domain, bigramsPath)
             trigramsCount = DomainCalculations.NGramDistribution(domain, trigramsPath)
+            totalLength = DomainCalculations.TotalLength(domain)
+            digitPercentage = DomainCalculations.DigitPercentage(domain)
+            longestConsecutiveDigits = DomainCalculations.LongestConsecutiveDigits(domain)
+            letterDigitSymbolTransitionCount = DomainCalculations.LetterDigitSymbolTransitionCount(domain)
+            
             cursor.execute("""
                 INSERT INTO domainsValidation (
                     domain,
@@ -146,9 +172,13 @@ def GenerateValidationDomains():
                     dictionaryCount,
                     bigramCount,
                     trigramCount,
+                    totalLength,
+                    digitPercentage,
+                    longestConsecutiveDigits,
+                    letterDigitSymbolTransitionCount,
                     isMalicious
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 domain,
@@ -158,6 +188,10 @@ def GenerateValidationDomains():
                 dictionaryCount,
                 bigramsCount,
                 trigramsCount,
+                totalLength,
+                digitPercentage,
+                longestConsecutiveDigits,
+                letterDigitSymbolTransitionCount,
                 isMalicious
             ))
             
@@ -173,4 +207,5 @@ def GenerateValidationDomains():
         finally:
             i += 1
 
+#GenerateTestingDomains()
 GenerateValidationDomains()

@@ -3,7 +3,7 @@ import sqlite3
 import datetime
 import numpy as np
 import tensorflow as tf
-from tensorflow import keras #type : ignore
+from tensorflow import keras # pyright: ignore[reportMissingModuleSource] #type : ignore
 from tensorflow.keras.optimizers import Adam # type: ignore
 from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping # type: ignore
 
@@ -26,11 +26,21 @@ if(oldModelPath.strip() != ""):
     model.summary()
 else:
     model = keras.Sequential([
-        keras.layers.Dense(6, activation='tanh'), 
-        keras.layers.Dense(12, activation='leaky_relu'), 
-        keras.layers.Dense(32, activation='leaky_relu'), 
-        keras.layers.Dense(6, activation='leaky_relu'), 
-        keras.layers.Dense(1, activation='sigmoid'), 
+        keras.layers.Input(shape=(10,)),
+        
+        keras.layers.Dense(32, activation='leaky_relu'),
+        #keras.layers.Dropout(0.2),
+        
+        #keras.layers.Dense(32, activation='leaky_relu'),
+        #keras.layers.Dropout(0.2),
+        
+         keras.layers.Dense(64, activation='leaky_relu'),
+                
+        keras.layers.Dense(32, activation='leaky_relu'),
+        
+        keras.layers.Dense(16, activation='leaky_relu'),
+        
+        keras.layers.Dense(1, activation='sigmoid')
     ])
 
 learningRate = settings["Learning Rate"]
@@ -39,7 +49,7 @@ learningRateReducer = ReduceLROnPlateau(
     monitor='val_loss', 
     factor=0.5, 
     patience=30, 
-    min_lr=1e-7
+    min_lr=1e-10
 )
 
 model.compile(
@@ -49,12 +59,12 @@ model.compile(
 
 cursor.execute(f"SELECT * FROM domainsTesting LIMIT {settings['Num Training Entries']}")
 trainRows = cursor.fetchall()
-trainInputs = np.array([row[1:7] for row in trainRows], dtype=float)
+trainInputs = np.array([row[1:11] for row in trainRows], dtype=float)
 trainOutputs = np.array([row[-1] for row in trainRows], dtype=float)
 
 cursor.execute("SELECT * FROM domainsValidation")
 valRows = cursor.fetchall()
-valInputs = np.array([row[1:7] for row in valRows], dtype=float)
+valInputs = np.array([row[1:11] for row in valRows], dtype=float)
 valOutputs = np.array([row[-1] for row in valRows], dtype=float)
 
 stopper = EarlyStopping(
