@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras #type : ignore
 
-THRESHOLD = 0.509
+THRESHOLD = 0.554300
 modelPath = input("Model Path : ")
 modelPath2 = input("2nd Model Path : ")
 if(modelPath2.strip() != ""):
@@ -26,10 +26,71 @@ with open("PythonSettings.json", "r") as f:
 conn = sqlite3.connect(settings["DB Path"])
 cursor = conn.cursor()
 
+cursor.execute("""
+    SELECT 
+        shannonEntropy, vowelConsonantRatio, longestConsecutiveConsonants, 
+        dictionaryCount, bigramCount, trigramCount, totalLength, 
+        digitPercentage, longestConsecutiveDigits, letterDigitSymbolTransitionCount, 
+        indexOfCoincidence, 
+        COUNT(DISTINCT isMalicious) AS distinct_labels,
+        COUNT(*) AS total_occurrences,
+        GROUP_CONCAT(domain || ' (label:' || isMalicious || ')', ' | ') AS overlapping_domains
+    FROM domainsTesting
+    GROUP BY 
+        shannonEntropy, vowelConsonantRatio, longestConsecutiveConsonants, 
+        dictionaryCount, bigramCount, trigramCount, totalLength, 
+        digitPercentage, longestConsecutiveDigits, letterDigitSymbolTransitionCount, 
+        indexOfCoincidence
+    HAVING distinct_labels > 1
+""")
+
+collisions = cursor.fetchall()
+
+print(f"Total conflicting feature sets within training: {len(collisions)}\n")
+
+cursor.execute("""
+    SELECT 
+        shannonEntropy, vowelConsonantRatio, longestConsecutiveConsonants, 
+        dictionaryCount, bigramCount, trigramCount, totalLength, 
+        digitPercentage, longestConsecutiveDigits, letterDigitSymbolTransitionCount, 
+        indexOfCoincidence, 
+        COUNT(DISTINCT isMalicious) AS distinct_labels,
+        COUNT(*) AS total_occurrences,
+        GROUP_CONCAT(domain || ' (label:' || isMalicious || ')', ' | ') AS overlapping_domains
+    FROM domainsValidation
+    GROUP BY 
+        shannonEntropy, vowelConsonantRatio, longestConsecutiveConsonants, 
+        dictionaryCount, bigramCount, trigramCount, totalLength, 
+        digitPercentage, longestConsecutiveDigits, letterDigitSymbolTransitionCount, 
+        indexOfCoincidence
+    HAVING distinct_labels > 1
+""")
+
+collisions = cursor.fetchall()
+
+print(f"Total conflicting feature sets within validation: {len(collisions)}\n")
+
+"""for row in collisions:
+    features = row[:11]
+    occurrences = row[12]
+    domains = row[13]
+    
+    print(f"Occurrences: {occurrences}")
+    print(f"Features   : {features}")
+    print(f"Domains    : {domains}")
+    print("-" * 80)"""
+    
+cursor.execute("SELECT * FROM domainsTesting")
+rows = cursor.fetchall()
+
+print(f"Length of training : {len(rows)}")
+
 cursor.execute("SELECT * FROM domainsValidation")
 rows = cursor.fetchall()
 
-val_inputs = np.array([row[1:11] for row in rows], dtype=float)
+print(f"Length of validation : {len(rows)}")
+
+val_inputs = np.array([row[1:12] for row in rows], dtype=float)
 val_outputs = np.array([row[-1] for row in rows], dtype=float)
 
 if(modelPath2 == ""):
@@ -74,7 +135,7 @@ best_acc = 0.0
 best_thresh = 0.5
 
 # Test thresholds between 0.40 and 0.60
-for threshold in np.arange(0.40, 0.60, 0.000001):
+for threshold in np.arange(0.40, 0.60, 0.0001):
     # Adjust prediction mask based on current threshold
     correct = np.sum((predictions <= threshold) == (val_outputs == 0))
     acc = correct / len(val_outputs)

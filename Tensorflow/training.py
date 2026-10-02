@@ -4,13 +4,20 @@ import datetime
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras # pyright: ignore[reportMissingModuleSource] #type : ignore
-from tensorflow.keras.optimizers import Adam # type: ignore
+from plyer import notification
+from tensorflow.keras.optimizers import AdamW # type: ignore
 from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping # type: ignore
 
 def SaveModel(extraCode = ""):
     if(extraCode) != "":
         extraCode = "-" + extraCode
     model.save(f"model{datetime.datetime.now().strftime('%d.%m.%y-%H.%M.%S')}{extraCode}.keras")
+
+    notification.notify(
+        title="Model Saved",
+        message=f"Successfully saved model{datetime.datetime.now().strftime('%d.%m.%y-%H.%M.%S')}{extraCode}.keras",
+        timeout=10
+    )
 
 with open("PythonSettings.json", "r") as f:
     settings = json.load(f)
@@ -26,19 +33,22 @@ if(oldModelPath.strip() != ""):
     model.summary()
 else:
     model = keras.Sequential([
-        keras.layers.Input(shape=(10,)),
+        keras.layers.Input(shape=(11,)),
         
-        keras.layers.Dense(32, activation='leaky_relu'),
+        keras.layers.Dense(32, activation='swish'),
+        keras.layers.BatchNormalization(),
         #keras.layers.Dropout(0.2),
         
         #keras.layers.Dense(32, activation='leaky_relu'),
         #keras.layers.Dropout(0.2),
         
-         keras.layers.Dense(64, activation='leaky_relu'),
+        keras.layers.Dense(64, activation='swish'),
+        keras.layers.BatchNormalization(),
                 
-        keras.layers.Dense(32, activation='leaky_relu'),
+        keras.layers.Dense(32, activation='swish'),
+        keras.layers.BatchNormalization(),
         
-        keras.layers.Dense(16, activation='leaky_relu'),
+        keras.layers.Dense(16, activation='swish'),
         
         keras.layers.Dense(1, activation='sigmoid')
     ])
@@ -53,23 +63,24 @@ learningRateReducer = ReduceLROnPlateau(
 )
 
 model.compile(
-    optimizer=Adam(learningRate), 
-    loss="binary_crossentropy" 
+    optimizer=AdamW(learningRate, weight_decay = 1e-3), 
+    loss="binary_crossentropy",
+    metrics=["accuracy"] 
 )
 
 cursor.execute(f"SELECT * FROM domainsTesting LIMIT {settings['Num Training Entries']}")
 trainRows = cursor.fetchall()
-trainInputs = np.array([row[1:11] for row in trainRows], dtype=float)
+trainInputs = np.array([row[1:12] for row in trainRows], dtype=float)
 trainOutputs = np.array([row[-1] for row in trainRows], dtype=float)
 
 cursor.execute("SELECT * FROM domainsValidation")
 valRows = cursor.fetchall()
-valInputs = np.array([row[1:11] for row in valRows], dtype=float)
+valInputs = np.array([row[1:12] for row in valRows], dtype=float)
 valOutputs = np.array([row[-1] for row in valRows], dtype=float)
 
 stopper = EarlyStopping(
     monitor='val_loss',         
-    patience=150,              
+    patience=200,              
     restore_best_weights=True  
 )
 

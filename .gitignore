@@ -8,4 +8,5 @@ Tensorflow/venv/
 *.keras
 !Tensorflow/Official Models/*.keras
 !Tensorflow/Official Models/Effective Model 5 Set/*.keras
+!Tensorflow/Official Models/Effective Model 6 Set/*.keras
 Tensorflow/PythonSettings.json

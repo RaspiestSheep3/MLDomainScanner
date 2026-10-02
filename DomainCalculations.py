@@ -119,3 +119,13 @@ def LetterDigitSymbolTransitionCount(input : str) -> float:
             transitionCount += 1
     
     return transitionCount / 70
+
+def IndexOfCoincidence(input : str) -> float:
+    alphabet = "1234567890qwertyuiopasdfghjklzxcvbnm-._"
+    sum = 0
+
+    for letter in alphabet:
+        ni = input.count(letter)
+        sum += (ni * (ni - 1))
+    
+    return sum / ((len(input)) * (len(input) - 1))

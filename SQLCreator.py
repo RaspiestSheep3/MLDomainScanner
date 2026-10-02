@@ -1,7 +1,10 @@
+import random
 import sqlite3
 import DomainCalculations
+from plyer import notification
 
-numEntries = int(input("Number of entries : "))
+numEntriesTraining = int(input("Number of entries for training: "))
+numEntriesValidation = int(input("Number of entries for validation: "))
 dataCSVPath = input("Data CSV : ")
 outputPath = input("Domain DB : ")
 dictionaryPath = input("Dictoinary path : ")
@@ -12,6 +15,12 @@ conn = sqlite3.connect(outputPath)
 cursor = conn.cursor()
 
 def GenerateTestingDomains():
+    cursor.execute("""
+            DROP TABLE IF EXISTS domainsTesting
+        """)
+        
+    conn.commit()
+    
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS domainsTesting (
             domain STRING PRIMARY KEY,
@@ -25,21 +34,37 @@ def GenerateTestingDomains():
             digitPercentage FLOAT,
             longestConsecutiveDigits FLOAT,
             letterDigitSymbolTransitionCount FLOAT,
-            isMalicious INT
+            indexOfCoincidence FLOAT,
+            isMalicious INT,
+            CONSTRAINT entry UNIQUE (
+                shannonEntropy,
+                vowelConsonantRatio,
+                longestConsecutiveConsonants,
+                dictionaryCount,
+                bigramCount,
+                trigramCount,
+                totalLength,
+                digitPercentage,
+                longestConsecutiveDigits,
+                letterDigitSymbolTransitionCount,
+                indexOfCoincidence
+            )
         )
     """)
     conn.commit()
 
     with open(dataCSVPath, "r") as f:
         lines = f.readlines()
+        random.shuffle(lines)
 
     numBenignDomains = 0
     numMaliciousDomains = 0
 
     i = 0
-    while(numBenignDomains < (numEntries // 2) or numMaliciousDomains < (numEntries // 2)):
-        if((numBenignDomains + numMaliciousDomains) % 100 == 0):
-            print(f"{numBenignDomains + numMaliciousDomains} / {numEntries} ({(numBenignDomains + numMaliciousDomains) * 100/numEntries:.3f}%)")
+    while(numBenignDomains < (numEntriesTraining // 2) or numMaliciousDomains < (numEntriesTraining // 2)):
+        if((numBenignDomains + numMaliciousDomains) % 1000 == 0 and ((numBenignDomains + numMaliciousDomains) != 0)):
+            conn.commit()
+            print(f"{numBenignDomains + numMaliciousDomains} / {numEntriesTraining} ({(numBenignDomains + numMaliciousDomains) * 100/numEntriesTraining:.3f}%)")
         
         line = lines[i].strip().split(",")
         domain = line[0]
@@ -48,7 +73,7 @@ def GenerateTestingDomains():
         if(isMalicious not in [0,1]):
             print(f"Warning : {domain} not defnied properly")
 
-        if((isMalicious == 0 and numBenignDomains >= numEntries // 2) or (isMalicious == 1 and numMaliciousDomains >= numEntries // 2)):
+        if((isMalicious == 0 and numBenignDomains >= numEntriesTraining // 2) or (isMalicious == 1 and numMaliciousDomains >= numEntriesTraining // 2)):
             i += 1
             continue
         
@@ -63,9 +88,10 @@ def GenerateTestingDomains():
             digitPercentage = DomainCalculations.DigitPercentage(domain)
             longestConsecutiveDigits = DomainCalculations.LongestConsecutiveDigits(domain)
             letterDigitSymbolTransitionCount = DomainCalculations.LetterDigitSymbolTransitionCount(domain)
+            indexOfCoincidence = DomainCalculations.IndexOfCoincidence(domain)
             
             cursor.execute("""
-                INSERT INTO domainsTesting (
+                INSERT OR IGNORE INTO domainsTesting (
                     domain,
                     shannonEntropy,
                     vowelConsonantRatio,
@@ -77,9 +103,10 @@ def GenerateTestingDomains():
                     digitPercentage,
                     longestConsecutiveDigits,
                     letterDigitSymbolTransitionCount,
+                    indexOfCoincidence,
                     isMalicious
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 domain,
@@ -93,22 +120,36 @@ def GenerateTestingDomains():
                 digitPercentage,
                 longestConsecutiveDigits,
                 letterDigitSymbolTransitionCount,
+                indexOfCoincidence,
                 isMalicious
             ))
             
-            conn.commit()
+            if cursor.rowcount > 0:
+                if isMalicious == 0:
+                    numBenignDomains += 1
+                else:
+                    numMaliciousDomains += 1
             
-            if(isMalicious == 0):
-                numBenignDomains += 1
-            else:
-                numMaliciousDomains += 1
-        except:
-            pass
+        except sqlite3.IntegrityError:
+            print(f"Warning : Integrity error")
+        except ZeroDivisionError:
+            print(f"Warning : Division by 0")
+        except Exception as e:
+            print(f"Warning : {e}")
+            assert 1 == 2
             #print(f"{domain} is repeated")
         finally:
             i += 1
+    
+    conn.commit()
 
 def GenerateValidationDomains():
+    cursor.execute("""
+        DROP TABLE IF EXISTS domainsValidation
+    """)
+    
+    conn.commit()
+    
     cursor.execute("""
             CREATE TABLE IF NOT EXISTS domainsValidation (
                 domain STRING PRIMARY KEY,
@@ -122,23 +163,37 @@ def GenerateValidationDomains():
                 digitPercentage FLOAT,
                 longestConsecutiveDigits FLOAT,
                 letterDigitSymbolTransitionCount FLOAT,
-                isMalicious INT
+                indexOfCoincidence FLOAT,
+                isMalicious INT,
+                CONSTRAINT entry UNIQUE (
+                    shannonEntropy,
+                    vowelConsonantRatio,
+                    longestConsecutiveConsonants,
+                    dictionaryCount,
+                    bigramCount,
+                    trigramCount,
+                    totalLength,
+                    digitPercentage,
+                    longestConsecutiveDigits,
+                    letterDigitSymbolTransitionCount,
+                    indexOfCoincidence
+                )
             )
         """)
     conn.commit()
     
     with open(dataCSVPath, "r") as f:
         lines = f.readlines()
+        random.shuffle(lines)
     
-    lines.reverse()
-
     numBenignDomains = 0
     numMaliciousDomains = 0
 
     i = 0
-    while(numBenignDomains < (numEntries // 2) or numMaliciousDomains < (numEntries // 2)):
-        if((numBenignDomains + numMaliciousDomains) % 100 == 0):
-            print(f"{numBenignDomains + numMaliciousDomains} / {numEntries} ({(numBenignDomains + numMaliciousDomains) * 100/numEntries:.3f}%)")
+    while(numBenignDomains < (numEntriesValidation // 2) or numMaliciousDomains < (numEntriesValidation // 2)):
+        if((numBenignDomains + numMaliciousDomains) % 1000 == 0):
+            conn.commit()
+            print(f"{numBenignDomains + numMaliciousDomains} / {numEntriesValidation} ({(numBenignDomains + numMaliciousDomains) * 100/numEntriesValidation:.3f}%)")
         
         line = lines[i].strip().split(",")
         domain = line[0]
@@ -147,7 +202,7 @@ def GenerateValidationDomains():
         if(isMalicious not in [0,1]):
             print(f"Warning : {domain} not defnied properly")
 
-        if((isMalicious == 0 and numBenignDomains >= numEntries // 2) or (isMalicious == 1 and numMaliciousDomains >= numEntries // 2)):
+        if((isMalicious == 0 and numBenignDomains >= numEntriesValidation // 2) or (isMalicious == 1 and numMaliciousDomains >= numEntriesValidation // 2)):
             i += 1
             continue
         
@@ -162,9 +217,10 @@ def GenerateValidationDomains():
             digitPercentage = DomainCalculations.DigitPercentage(domain)
             longestConsecutiveDigits = DomainCalculations.LongestConsecutiveDigits(domain)
             letterDigitSymbolTransitionCount = DomainCalculations.LetterDigitSymbolTransitionCount(domain)
+            indexOfCoincidence = DomainCalculations.IndexOfCoincidence(domain)
             
             cursor.execute("""
-                INSERT INTO domainsValidation (
+                INSERT OR IGNORE INTO domainsValidation (
                     domain,
                     shannonEntropy,
                     vowelConsonantRatio,
@@ -176,9 +232,10 @@ def GenerateValidationDomains():
                     digitPercentage,
                     longestConsecutiveDigits,
                     letterDigitSymbolTransitionCount,
+                    indexOfCoincidence,
                     isMalicious
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 domain,
@@ -192,20 +249,28 @@ def GenerateValidationDomains():
                 digitPercentage,
                 longestConsecutiveDigits,
                 letterDigitSymbolTransitionCount,
+                indexOfCoincidence,
                 isMalicious
             ))
             
-            conn.commit()
+            if cursor.rowcount > 0:
+                if isMalicious == 0:
+                    numBenignDomains += 1
+                else:
+                    numMaliciousDomains += 1
             
-            if(isMalicious == 0):
-                numBenignDomains += 1
-            else:
-                numMaliciousDomains += 1
-        except:
-            pass
+        except Exception as e:
+            print(f"Warning : {e}")
             #print(f"{domain} is repeated")
         finally:
             i += 1
+        
+    conn.commit()
 
-#GenerateTestingDomains()
+GenerateTestingDomains()
 GenerateValidationDomains()
+
+notification.notify(
+    title="SQL generation complete",
+    timeout=10
+)
