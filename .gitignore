@@ -5,7 +5,6 @@ Neuroevolution/CMakeUserPresets.json
 .vs/
 Neuroevolution/build/
 Tensorflow/venv/
-*.keras
 !Tensorflow/Official Models/*.keras
 !Tensorflow/Official Models/Effective Model 5 Set/*.keras
 !Tensorflow/Official Models/Effective Model 6 Set/*.keras

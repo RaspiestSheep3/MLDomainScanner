@@ -3,7 +3,7 @@ import sqlite3
 import datetime
 import numpy as np
 import tensorflow as tf
-from tensorflow import keras #type : ignore
+from tensorflow import keras # pyright: ignore[reportMissingModuleSource] #type : ignore
 
 THRESHOLD = 0.554300
 modelPath = input("Model Path : ")
